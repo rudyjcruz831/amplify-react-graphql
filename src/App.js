@@ -3,9 +3,11 @@ import React, { useState, useEffect } from "react";
 import './App.css';
 
 import "@aws-amplify/ui-react/styles.css";
-import { Storage } from "aws-amplify";
+// import { Storage } from "aws-amplify";
+import { uploadData, getUrl, remove } from 'aws-amplify/storage';
 // import {API, graphqlOperation} from "aws-amplify"
 import { generateClient } from 'aws-amplify/api';
+
 // import { createTodo, updateTodo, deleteTodo } from './graphql/mutations';
 import { listNotes } from "./graphql/queries";
 
@@ -17,6 +19,7 @@ import {
   Heading,
   Text,
   TextField,
+  Image,
   View,
 } from "@aws-amplify/ui-react";
 
@@ -41,10 +44,9 @@ function App({ signOut }) {
     await Promise.all(
       notesFromAPI.map(async (note) => {
         if (note.image){
-          const url = await Storage.get(note.name)
+          const url = await getUrl({key:note.id})
           note.image = url
-        }
-        return note
+        } return note
       })
     )
     setNotes(notesFromAPI);
@@ -53,16 +55,18 @@ function App({ signOut }) {
   async function createNote(event) {
     event.preventDefault();
     const form = new FormData(event.target);
+    const image = form.get("image");
     const data = {
       name: form.get("name"),
       description: form.get("description"),
       image: image.name,
     };
-    if (!!data.image) await Storage.put(data.name, image);
-    await client.graphql({
+   
+    const result = await client.graphql({
       query: createNoteMutation,
       variables: { input: data },
     });
+    if (!!data.image) await uploadData({key: result.data.createNote.id, data:image}).result;
     fetchNotes();
     event.target.reset();
   }
@@ -70,7 +74,7 @@ function App({ signOut }) {
   async function deleteNote({ id }) {
     const newNotes = notes.filter((note) => note.id !== id);
     setNotes(newNotes);
-    await Storage.remove(name)
+    await remove({key: id})
     await client.graphql({
       query: deleteNoteMutation,
       variables: { input: { id } },
